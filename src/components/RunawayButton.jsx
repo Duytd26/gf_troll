@@ -26,7 +26,6 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
 
     if (typeof window === 'undefined') return;
 
-    // Trigger phone vibration if available
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       try { navigator.vibrate(25); } catch (e) {}
     }
@@ -36,13 +35,10 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
 
     const clientW = window.innerWidth || document.documentElement.clientWidth;
     const clientH = window.innerHeight || document.documentElement.clientHeight;
-
-    // Safety margins from screen edges to avoid any overflow or notch overlap
     const padX = 20;
-    const padTop = 85; // safe distance from header / status bar
-    const padBottom = 85; // safe distance from bottom safe area / footer
+    const padTop = 85;
+    const padBottom = 85;
 
-    // Obstacles to avoid: Yes button & Main Heading
     const obstacles = [];
     if (yesButtonRef?.current) {
       const rect = yesButtonRef.current.getBoundingClientRect();
@@ -82,7 +78,6 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
       return false;
     };
 
-    // Constrained bounds
     const minX = padX;
     const maxX = Math.max(minX, clientW - btnWidth - padX);
     const minY = padTop;
@@ -92,15 +87,17 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
     let chosenY = minY;
     let found = false;
 
-    for (let attempts = 0; attempts < 40; attempts++) {
-      const candidateX = Math.floor(minX + Math.random() * (maxX - minX));
-      const candidateY = Math.floor(minY + Math.random() * (maxY - minY));
+    for (let attempts = 0; attempts < 60; attempts++) {
+      const candidateX = Math.floor(minX + Math.random() * (maxX - minX + 1));
+      const candidateY = Math.floor(minY + Math.random() * (maxY - minY + 1));
 
       if (isColliding(candidateX, candidateY)) continue;
 
       if (triggerX !== undefined && triggerY !== undefined) {
-        const dist = Math.hypot(candidateX + btnWidth / 2 - triggerX, candidateY + btnHeight / 2 - triggerY);
-        if (dist < 115) continue;
+        const centerX = candidateX + btnWidth / 2;
+        const centerY = candidateY + btnHeight / 2;
+        const dist = Math.hypot(centerX - triggerX, centerY - triggerY);
+        if (dist < 90) continue;
       }
 
       chosenX = candidateX;
@@ -114,7 +111,6 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
       chosenY = maxY;
     }
 
-    // Spawn cute subtle runaway particle
     const currentRect = buttonRef.current?.getBoundingClientRect();
     if (currentRect) {
       setSmokeEmoji({
@@ -127,8 +123,7 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
 
     setHasMoved(true);
     setPosition({ x: chosenX, y: chosenY });
-    setRotation(Math.floor(-8 + Math.random() * 16)); // tasteful, subtle tilt
-
+    setRotation(Math.floor(-8 + Math.random() * 16));
     setMessageIndex((prev) => prev + 1);
     onEvade();
   }, [onEvade, rejectCount, yesButtonRef, headingRef]);
@@ -187,6 +182,8 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
         ref={buttonRef}
         type="button"
         onMouseEnter={handleInteraction}
+        onPointerDown={handleInteraction}
+        onPointerEnter={handleInteraction}
         onTouchStart={handleInteraction}
         onClick={handleInteraction}
         animate={

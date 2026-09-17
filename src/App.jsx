@@ -23,6 +23,23 @@ export default function App() {
   const [rejectCount, setRejectCount] = useState(0);
   const [isEasterEggOpen, setIsEasterEggOpen] = useState(false);
 
+  const formatVietnameseDate = (date) => {
+    if (!date) return 'Chưa chọn';
+    const dt = new Date(date);
+    const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const dayName = dayNames[dt.getDay()];
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const yyyy = dt.getFullYear();
+    return `${dayName}, ${dd}/${mm}/${yyyy}`;
+  };
+
+  const inputSummary = [
+    { label: 'Ngày chọn', value: formatVietnameseDate(selectedDate) },
+    { label: 'Giờ đón', value: selectedTime || 'Chưa chọn' },
+    { label: 'Lần từ chối', value: `${rejectCount} lần` },
+  ];
+
   const handleRestart = () => {
     setCurrentStep(1);
     setRejectCount(0);
@@ -44,6 +61,21 @@ export default function App() {
       <header className="w-full max-w-md z-10 mb-auto">
         <ProgressSteps currentStep={currentStep} />
       </header>
+
+      <aside className="fixed right-3 top-3 z-50 w-[220px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-rose-200/70 bg-white/85 p-3 shadow-lg backdrop-blur-md sm:right-5 sm:top-5">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-rose-700">Dashboard</p>
+          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-semibold text-rose-700">Live</span>
+        </div>
+        <div className="space-y-2 text-left">
+          {inputSummary.map((item) => (
+            <div key={item.label} className="rounded-xl bg-stone-50/90 px-2.5 py-2">
+              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-stone-500">{item.label}</div>
+              <div className="mt-1 text-xs font-bold text-stone-800">{item.value}</div>
+            </div>
+          ))}
+        </div>
+      </aside>
 
       {/* Main Interactive Stage */}
       <main className="w-full max-w-lg my-auto py-2 sm:py-4 z-10 flex items-center justify-center">
