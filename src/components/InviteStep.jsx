@@ -6,7 +6,7 @@ import RunawayButton from './RunawayButton';
 import { getHeadingForRejection, getSubtitleForRejection } from '../utils/messages';
 import { playSuccessChime, playPop } from '../utils/sound';
 
-export default function InviteStep({ onAccept, rejectCount, setRejectCount }) {
+export default function InviteStep({ onAccept, rejectCount, setRejectCount, onEvade }) {
   const yesButtonRef = useRef(null);
   const headingRef = useRef(null);
   const [isAccepted, setIsAccepted] = useState(false);
@@ -15,7 +15,11 @@ export default function InviteStep({ onAccept, rejectCount, setRejectCount }) {
   const yesScale = 1 + Math.min(rejectCount * 0.04, 0.45); // up to ~45% larger
 
   const handleEvade = () => {
-    setRejectCount((prev) => prev + 1);
+    if (onEvade) {
+      onEvade();
+    } else if (setRejectCount) {
+      setRejectCount((prev) => prev + 1);
+    }
   };
 
   const handleYesClick = () => {

@@ -1,103 +1,108 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TROLL_MESSAGES } from '../utils/messages';
 import { playRunaway } from '../utils/sound';
 
-export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, headingRef }) {
+const ESCAPE_EMOJIS = ['💨', '🏃‍♂️💨', '😜', '👻', '✨', '💫', '🏃‍♀️💨'];
+
+export default function RunawayButton({ onEvade, rejectCount, yesButtonRef }) {
   const buttonRef = useRef(null);
   const [hasMoved, setHasMoved] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [rotation, setRotation] = useState(0);
-  const [messageIndex, setMessageIndex] = useState(0);
-  const [smokeEmoji, setSmokeEmoji] = useState(null);
+  const [smokeParticle, setSmokeParticle] = useState(null);
+  const [mounted, setMounted] = useState(false);
+  const sideToggleRef = useRef(false);
 
-  // Determine button text
-  const currentText = rejectCount >= 15
-    ? "Thôi em chịu rồi 😭"
-    : TROLL_MESSAGES[messageIndex % TROLL_MESSAGES.length];
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  // Calculate safe next coordinates
+  // Determine button text dynamically based on rejection count
+  const currentText = TROLL_MESSAGES[rejectCount % TROLL_MESSAGES.length];
+
+  // Calculate coordinates for snappy, reliable evasion across mobile & desktop
   const moveButton = useCallback((triggerX, triggerY) => {
     playRunaway();
 
-    if (rejectCount >= 14) {
-      console.log('Nice try 😏');
+    // Trigger haptic vibration on mobile phones
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try {
+        navigator.vibrate([20, 25, 20]);
+      } catch (e) {}
     }
 
     if (typeof window === 'undefined') return;
 
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      try { navigator.vibrate(25); } catch (e) {}
-    }
+    const btnWidth = buttonRef.current?.offsetWidth || 150;
+    const btnHeight = buttonRef.current?.offsetHeight || 48;
 
-    const btnWidth = buttonRef.current ? buttonRef.current.offsetWidth : 140;
-    const btnHeight = buttonRef.current ? buttonRef.current.offsetHeight : 50;
+    const winW = window.innerWidth || document.documentElement.clientWidth;
+    const winH = window.innerHeight || document.documentElement.clientHeight;
 
-    const clientW = window.innerWidth || document.documentElement.clientWidth;
-    const clientH = window.innerHeight || document.documentElement.clientHeight;
-    const padX = 20;
-    const padTop = 85;
-    const padBottom = 85;
-
-    const obstacles = [];
-    if (yesButtonRef?.current) {
-      const rect = yesButtonRef.current.getBoundingClientRect();
-      obstacles.push({
-        left: rect.left - 20,
-        right: rect.right + 20,
-        top: rect.top - 20,
-        bottom: rect.bottom + 20,
-      });
-    }
-    if (headingRef?.current) {
-      const rect = headingRef.current.getBoundingClientRect();
-      obstacles.push({
-        left: rect.left - 15,
-        right: rect.right + 15,
-        top: rect.top - 15,
-        bottom: rect.bottom + 15,
-      });
-    }
-
-    const isColliding = (x, y) => {
-      const rLeft = x;
-      const rRight = x + btnWidth;
-      const rTop = y;
-      const rBottom = y + btnHeight;
-
-      for (const obs of obstacles) {
-        if (
-          rLeft < obs.right &&
-          rRight > obs.left &&
-          rTop < obs.bottom &&
-          rBottom > obs.top
-        ) {
-          return true;
-        }
-      }
-      return false;
-    };
+    // Mobile safe padding (avoiding notches, status bars, browser address bars)
+    const padX = 16;
+    const padTop = 75;
+    const padBottom = 80;
 
     const minX = padX;
-    const maxX = Math.max(minX, clientW - btnWidth - padX);
+    const maxX = Math.max(minX, winW - btnWidth - padX);
     const minY = padTop;
-    const maxY = Math.max(minY, clientH - btnHeight - padBottom);
+    const maxY = Math.max(minY, winH - btnHeight - padBottom);
+
+    // Obstacle: "Dạ đi" button rect to avoid overlapping it
+    let yesRect = null;
+    if (yesButtonRef?.current) {
+      const r = yesButtonRef.current.getBoundingClientRect();
+      yesRect = {
+        left: r.left - 15,
+        right: r.right + 15,
+        top: r.top - 15,
+        bottom: r.bottom + 15,
+      };
+    }
+
+    const isCollidingWithYes = (x, y) => {
+      if (!yesRect) return false;
+      const bLeft = x;
+      const bRight = x + btnWidth;
+      const bTop = y;
+      const bBottom = y + btnHeight;
+      return !(bRight < yesRect.left || bLeft > yesRect.right || bBottom < yesRect.top || bTop > yesRect.bottom);
+    };
+
+    // Toggle side for back-and-forth movement ("cứ đi đi đi lại")
+    sideToggleRef.current = !sideToggleRef.current;
+    const preferLeft = sideToggleRef.current;
 
     let chosenX = minX;
     let chosenY = minY;
     let found = false;
 
-    for (let attempts = 0; attempts < 60; attempts++) {
-      const candidateX = Math.floor(minX + Math.random() * (maxX - minX + 1));
-      const candidateY = Math.floor(minY + Math.random() * (maxY - minY + 1));
+    // Try finding an optimal spot that is far from trigger and doesn't collide
+    for (let attempts = 0; attempts < 50; attempts++) {
+      let candidateX;
+      if (preferLeft) {
+        // Left half of screen
+        const halfMax = Math.min(maxX, winW / 2 - btnWidth / 2);
+        candidateX = Math.floor(minX + Math.random() * Math.max(10, halfMax - minX));
+      } else {
+        // Right half of screen
+        const halfMin = Math.max(minX, winW / 2 - btnWidth / 2);
+        candidateX = Math.floor(halfMin + Math.random() * Math.max(10, maxX - halfMin));
+      }
 
-      if (isColliding(candidateX, candidateY)) continue;
+      const candidateY = Math.floor(minY + Math.random() * (maxY - minY));
+
+      if (isCollidingWithYes(candidateX, candidateY)) continue;
 
       if (triggerX !== undefined && triggerY !== undefined) {
-        const centerX = candidateX + btnWidth / 2;
-        const centerY = candidateY + btnHeight / 2;
-        const dist = Math.hypot(centerX - triggerX, centerY - triggerY);
-        if (dist < 90) continue;
+        const cX = candidateX + btnWidth / 2;
+        const cY = candidateY + btnHeight / 2;
+        const dist = Math.hypot(cX - triggerX, cY - triggerY);
+        // Ensure distance from finger/cursor is at least 110px
+        if (dist < 110) continue;
       }
 
       chosenX = candidateX;
@@ -107,28 +112,36 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
     }
 
     if (!found) {
-      chosenX = Math.random() > 0.5 ? minX : maxX;
-      chosenY = maxY;
+      // Fallback: Jump to opposite side of trigger
+      if (triggerX !== undefined && triggerX > winW / 2) {
+        chosenX = minX + 10;
+      } else {
+        chosenX = maxX - 10;
+      }
+      chosenY = Math.min(maxY, Math.max(minY, winH * 0.65));
     }
 
+    // Spawn cute escape smoke/emoji particle at current button location
     const currentRect = buttonRef.current?.getBoundingClientRect();
     if (currentRect) {
-      setSmokeEmoji({
+      const randomEmoji = ESCAPE_EMOJIS[Math.floor(Math.random() * ESCAPE_EMOJIS.length)];
+      setSmokeParticle({
         x: currentRect.left + currentRect.width / 2,
-        y: currentRect.top,
+        y: currentRect.top + currentRect.height / 2,
+        emoji: randomEmoji,
         key: Date.now(),
       });
-      setTimeout(() => setSmokeEmoji(null), 500);
+      setTimeout(() => setSmokeParticle(null), 450);
     }
 
     setHasMoved(true);
     setPosition({ x: chosenX, y: chosenY });
-    setRotation(Math.floor(-8 + Math.random() * 16));
-    setMessageIndex((prev) => prev + 1);
+    // Whimsical random tilt between -10deg and +10deg
+    setRotation(Math.floor(-10 + Math.random() * 20));
     onEvade();
-  }, [onEvade, rejectCount, yesButtonRef, headingRef]);
+  }, [onEvade, yesButtonRef]);
 
-  // Desktop proximity evasion
+  // Desktop proximity dodge (when mouse gets close, playful flee)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const isTouch = window.matchMedia('(pointer: coarse)').matches;
@@ -141,9 +154,7 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
       const btnCenterY = rect.top + rect.height / 2;
 
       const dist = Math.hypot(e.clientX - btnCenterX, e.clientY - btnCenterY);
-
-      // If cursor gets within 60px, playfully flee
-      if (dist < 60) {
+      if (dist < 65) {
         moveButton(e.clientX, e.clientY);
       }
     };
@@ -152,28 +163,41 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, [moveButton]);
 
+  // Interaction handler for Touch and Pointer
   const handleInteraction = (e) => {
-    e.preventDefault();
+    if (e.cancelable) {
+      e.preventDefault();
+    }
     e.stopPropagation();
-    const touch = e.touches ? e.touches[0] : e;
-    moveButton(touch?.clientX, touch?.clientY);
+
+    let clientX;
+    let clientY;
+    if (e.touches && e.touches[0]) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else if (e.clientX !== undefined) {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    moveButton(clientX, clientY);
   };
 
-  return (
+  const buttonElement = (
     <>
       {/* Smoke / Dash particle animation on escape */}
       <AnimatePresence>
-        {smokeEmoji && (
+        {smokeParticle && (
           <motion.div
-            key={smokeEmoji.key}
-            initial={{ opacity: 0.9, scale: 0.8, y: 0 }}
-            animate={{ opacity: 0, scale: 1.25, y: -20 }}
+            key={smokeParticle.key}
+            initial={{ opacity: 1, scale: 0.8, y: 0 }}
+            animate={{ opacity: 0, scale: 1.4, y: -25 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.45, ease: 'easeOut' }}
-            className="fixed pointer-events-none z-50 text-base font-bold select-none"
-            style={{ left: smokeEmoji.x, top: smokeEmoji.y }}
+            className="fixed pointer-events-none z-[100000] text-xl font-bold select-none -translate-x-1/2 -translate-y-1/2"
+            style={{ left: smokeParticle.x, top: smokeParticle.y }}
           >
-            💨 😝
+            {smokeParticle.emoji}
           </motion.div>
         )}
       </AnimatePresence>
@@ -181,10 +205,9 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
       <motion.button
         ref={buttonRef}
         type="button"
-        onMouseEnter={handleInteraction}
         onPointerDown={handleInteraction}
-        onPointerEnter={handleInteraction}
         onTouchStart={handleInteraction}
+        onMouseEnter={handleInteraction}
         onClick={handleInteraction}
         animate={
           hasMoved
@@ -192,27 +215,46 @@ export default function RunawayButton({ onEvade, rejectCount, yesButtonRef, head
                 left: position.x,
                 top: position.y,
                 rotate: rotation,
+                scale: [0.92, 1.04, 1],
               }
             : {
                 rotate: 0,
+                scale: 1,
               }
         }
         transition={{
           type: 'spring',
-          stiffness: 340,
-          damping: 22,
-          mass: 0.8,
+          stiffness: 420,
+          damping: 24,
+          mass: 0.7,
         }}
-        style={{
-          position: hasMoved ? 'fixed' : 'relative',
-          zIndex: hasMoved ? 40 : 'auto',
-          touchAction: 'none',
-        }}
-        className="px-5 py-3.5 rounded-2xl bg-white/85 hover:bg-white text-stone-700 font-semibold text-sm sm:text-base border border-stone-200/90 shadow-subtle backdrop-blur-md transition-shadow select-none cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95"
+        style={
+          hasMoved
+            ? {
+                position: 'fixed',
+                zIndex: 99999,
+                touchAction: 'none',
+                userSelect: 'none',
+                WebkitTapHighlightColor: 'transparent',
+              }
+            : {
+                position: 'relative',
+                touchAction: 'none',
+                userSelect: 'none',
+              }
+        }
+        className="px-5 py-3.5 rounded-2xl bg-white/95 hover:bg-white text-stone-700 font-bold text-sm sm:text-base border border-stone-300/80 shadow-md backdrop-blur-md transition-shadow select-none cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95"
       >
         <span>{currentText}</span>
       </motion.button>
     </>
   );
-}
 
+  // When moved, Portal directly into document.body to escape ANY parent overflow:hidden or transform!
+  if (hasMoved && mounted && typeof document !== 'undefined') {
+    return createPortal(buttonElement, document.body);
+  }
+
+  // Before initial move, render in normal document flow beside "Dạ đi"
+  return buttonElement;
+}

@@ -1,29 +1,37 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { Calendar, Clock, Heart, Sparkles } from 'lucide-react';
+import { Calendar, Clock, Heart, Sparkles, Send, Check } from 'lucide-react';
 import { playSuccessChime, playPop } from '../utils/sound';
+import { saveChoice } from '../utils/syncService';
 
 export default function SuccessStep({ selectedDate, selectedTime, onOpenEasterEgg }) {
-  // Tasteful, controlled celebration burst on mount
+  const [copied, setCopied] = useState(false);
+
+  // Tasteful, controlled celebration burst on mount & auto-sync
   useEffect(() => {
     playSuccessChime();
+
+    // Auto sync completion to Cloud & LocalStorage
+    saveChoice({
+      selectedDate: selectedDate ? new Date(selectedDate).toISOString() : null,
+      selectedTime: selectedTime || '19:00',
+      status: 'completed',
+    });
 
     const colors = ['#be123c', '#e11d48', '#fb7185', '#f59e0b', '#ffffff'];
 
     try {
-      // Crisp initial burst
       confetti({
-        particleCount: 45,
+        particleCount: 50,
         spread: 60,
         origin: { y: 0.65 },
         colors: colors,
       });
 
-      // Gentle secondary burst
       const timer = setTimeout(() => {
         confetti({
-          particleCount: 30,
+          particleCount: 35,
           spread: 75,
           origin: { y: 0.6 },
           colors: colors,
@@ -32,7 +40,7 @@ export default function SuccessStep({ selectedDate, selectedTime, onOpenEasterEg
 
       return () => clearTimeout(timer);
     } catch (e) {}
-  }, []);
+  }, [selectedDate, selectedTime]);
 
   const formatVietnameseDate = (d) => {
     if (!d) return 'Cuối tuần này';
@@ -43,6 +51,26 @@ export default function SuccessStep({ selectedDate, selectedTime, onOpenEasterEg
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
     const y = dateObj.getFullYear();
     return `${dayName}, ${date}/${m}/${y}`;
+  };
+
+  const handleSendNotice = () => {
+    playPop();
+    const dateStr = formatVietnameseDate(selectedDate);
+    const timeStr = selectedTime || '19:00';
+    const message = `Anh ơiii, em chốt hẹn: ${dateStr} lúc ${timeStr} rùi nè! Nhớ qua đón em đúng giờ nha 🥰🚗💨`;
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(message).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 3000);
+      }).catch(() => {});
+    }
+
+    // Try opening sms if mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = `sms:?&body=${encodeURIComponent(message)}`;
+    }
   };
 
   return (
@@ -121,7 +149,7 @@ export default function SuccessStep({ selectedDate, selectedTime, onOpenEasterEg
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/60 mb-6 text-center space-y-1"
+        className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/60 mb-5 text-center space-y-1"
       >
         <p className="text-sm sm:text-[15px] text-stone-800 font-medium">
           Nhớ chuẩn bị xinh đẹp nhé.
@@ -132,21 +160,43 @@ export default function SuccessStep({ selectedDate, selectedTime, onOpenEasterEg
         </p>
       </motion.div>
 
-      {/* Button "Em biết rồi" */}
-      <motion.button
-        type="button"
-        onClick={() => {
-          playPop();
-          onOpenEasterEgg();
-        }}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.97 }}
-        className="w-full py-3.5 sm:py-4 rounded-2xl font-bold text-white text-base shadow-btn-rose bg-rose-600 hover:bg-rose-700 active:bg-rose-800 transition-all cursor-pointer flex items-center justify-center gap-2"
-      >
-        <Heart className="w-4 h-4 fill-white" />
-        <span>❤️ Em biết rùi ạ</span>
-      </motion.button>
+      {/* Quick Notify / Send Button */}
+      <div className="space-y-2.5">
+        <motion.button
+          type="button"
+          onClick={handleSendNotice}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
+          className="w-full py-3 rounded-2xl font-semibold text-rose-700 text-sm bg-rose-50 hover:bg-rose-100/80 border border-rose-200/80 transition-all cursor-pointer flex items-center justify-center gap-2"
+        >
+          {copied ? (
+            <>
+              <Check className="w-4 h-4 text-emerald-600" />
+              <span className="text-emerald-700 font-bold">Đã copy lời nhắn gửi anh! ❤️</span>
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4 text-rose-600" />
+              <span>Gửi xác nhận cho anh qua Tin nhắn / Zalo 💬</span>
+            </>
+          )}
+        </motion.button>
+
+        {/* Button "Em biết rồi" */}
+        <motion.button
+          type="button"
+          onClick={() => {
+            playPop();
+            onOpenEasterEgg();
+          }}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
+          className="w-full py-3.5 sm:py-4 rounded-2xl font-bold text-white text-base shadow-btn-rose bg-rose-600 hover:bg-rose-700 active:bg-rose-800 transition-all cursor-pointer flex items-center justify-center gap-2"
+        >
+          <Heart className="w-4 h-4 fill-white" />
+          <span>❤️ Em biết rùi ạ</span>
+        </motion.button>
+      </div>
     </motion.div>
   );
 }
-
